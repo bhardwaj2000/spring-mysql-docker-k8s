@@ -1,0 +1,59 @@
+# create deployment for spring-mysql-docker-k8s
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-mysql-docker-k8s-deployment
+spec:
+  selector:
+    matchLabels:
+      app: spring-mysql-docker-k8s
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: spring-mysql-docker-k8s
+    spec:
+      containers:
+        - name: spring-mysql-docker-k8s
+          image: spring-mysql-docker-k8s:1.0
+          imagePullPolicy: IfNotPresent   # (default is fine)
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: host
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: dbName
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: password
+
+---
+
+# create service for spring-mysql-docker-k8s
+apiVersion: v1
+kind: Service
+metadata:
+  name: spring-mysql-docker-k8s-service
+spec:
+  selector:
+    app: spring-mysql-docker-k8s
+  ports:
+    - protocol: "TCP"
+      port: 8080
+      targetPort: 8080
+  type: NodePort
+---

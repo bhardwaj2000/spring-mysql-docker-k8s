@@ -1,0 +1,81 @@
+# define persistance volume claim (pvc) for mysql storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pv-claim # name of the pvc for identifying
+  labels:
+    app: mysql
+    tier: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi # this tell kubarnetes about the amount of space we are trying to claim
+---
+# add k8s deployment and step by step configuration for mysql
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  labels:
+    app: mysql
+    tier: database
+spec:
+  selector: # mysql pod contains same labels as deployment
+    matchLabels:
+      app: mysql
+      tier: database
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql # must match 'Service' and 'Deployment' selectors
+        tier: database
+    spec:
+      containers:
+        - image: mysql:5.7
+          args:
+            - "--ignore-db-dir=lost+found"
+          name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: password
+
+            - name: MYSQL_DATABASE # setting database name from a 'configmap'
+              valueFrom:
+                configMapKeyRef:
+                  name: db-config
+                  key: dbName
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-persistent-storage
+          persistentVolumeClaim:
+            claimName: mysql-pv-claim
+---
+# define a 'Service' to expose mysql to other services
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  labels:
+    app: mysql
+    tier: database
+spec:
+  ports:
+    - port: 3306
+      targetPort: 3306
+  selector:
+    app: mysql
+    tier: database
+  clusterIP: None # we use DNS, Thus cluster ip not relevant
+---
